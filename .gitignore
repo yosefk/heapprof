@@ -1,0 +1,5 @@
+*.heapprof
+test
+heapprof.so
+core
+*.core
