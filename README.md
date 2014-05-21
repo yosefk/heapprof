@@ -13,7 +13,7 @@ Build
 Then:
 
 * Copy **heapprof.so** to a directory in your $LD_LIBRARY_PATH.
-* Copy **heapprof.py** copy to a directory in your $PATH.
+* Copy **heapprof.py** to a directory in your $PATH.
 
 Usage
 =====
