@@ -1,4 +1,7 @@
 #!/bin/tcsh -f
+setenv HEAPPROF_FRAMES 8
+# use addr2line instead of gdb - just to test that code branch
+setenv HEAPPROF_ADDR2LINE
 unlimit coredumpsize
 echo building the preloaded profiler library
 gcc -o heapprof.so heapprof.c -shared -fPIC -ldl -lpthread -ansi -Wall
@@ -12,6 +15,7 @@ echo running the heap profiler on the first snapshot
 echo running the heap profiler on the second snapshot
 ./heapprof.py test second.core > second.heapprof
 echo
+unsetenv HEAPPROF_ADDR2LINE
 echo testing thread support
 gcc -o threads threads.c -g -lpthread
 rm -f core

@@ -1,5 +1,6 @@
 *.heapprof
 test
+threads
 heapprof.so
 core
 *.core

@@ -7,19 +7,13 @@
 #include <unistd.h>
 #include <pthread.h>
 
-typedef void* (*malloc_func)(size_t);
-typedef void* (*free_func)(void*);
+/* NOTE: some systems may require a different alignment;
+   ALIGN_UP assumes that ALIGNMENT is a power of 2 */
+#define ALIGNMENT 8
 
-static malloc_func g_malloc;
-static free_func g_free;
-static int g_heapprof_frames = 20;
+#define ALIGN_UP(x) (((x) + (ALIGNMENT-1)) & ~(ALIGNMENT-1))
+#define EXTRA ALIGN_UP((g_heapprof_frames+3)*sizeof(void*))
 
-static pthread_mutex_t g_backtrace_mutex;
-static pthread_mutexattr_t g_mutex_attr;
-static int g_mutex_init;
-
-
-#define EXTRA ((g_heapprof_frames+3)*sizeof(void*))
 #define START_MAGIC ((void*)0x50616548) /* ASCII "HeaP" */
 #define END_MAGIC ((void*)0x466f7250) /* ASCII "ProF" */
 
@@ -37,7 +31,20 @@ static int g_mutex_init;
 #define SIZE_INDEX 1
 #define END_INDEX (g_heapprof_frames+2)
 
-/* TODO: check env vars - force new, get stack size */
+typedef void* (*malloc_func)(size_t);
+typedef void* (*free_func)(void*);
+
+static malloc_func g_malloc;
+static free_func g_free;
+static int g_heapprof_frames = 16;
+
+static pthread_mutex_t g_backtrace_mutex;
+static pthread_mutexattr_t g_mutex_attr;
+static int g_mutex_init;
+
+static char* g_pre_init_begin;
+static char* g_pre_init_end;
+
 /* TODO: use gdb as a (better) alternative to addr2line */
 static void init(void) {
   static int once = 1;
@@ -48,6 +55,9 @@ static void init(void) {
     g_malloc = (malloc_func)(size_t)dlsym(RTLD_NEXT, "malloc");
     g_free = (free_func)(size_t)dlsym(RTLD_NEXT, "free");
 
+    char* frames = getenv("HEAPPROF_FRAMES");
+    if(frames) g_heapprof_frames = atoi(frames);
+
     pthread_mutexattr_init(&g_mutex_attr);
     pthread_mutexattr_settype(&g_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&g_backtrace_mutex, &g_mutex_attr);
@@ -57,16 +67,23 @@ static void init(void) {
   }
 }
 
-/* NOTE: malloc might be required to return a pointer aligned
-   to a larger size that sizeof(void*). If so, the malloc/free below
-   must be patched (one way is to align EXTRA up to the required size) */
+/* if malloc is called before we have g_malloc (as it is by dlsym("malloc")...),
+get memory from sbrk(), and remember the range of pointers allocated by sbrk
+so that free() doesn't try to call *g_free on them */
+static void* pre_init_malloc(size_t size) {
+  if(!g_pre_init_begin) g_pre_init_begin = (char*)sbrk(0);
+  char* p = (char*)sbrk(size);
+  g_pre_init_end = p + size;
+  return p;
+}
+
 void* malloc(size_t size) {
   static int inside_malloc = 0;
   init();
 
   if(g_mutex_init) pthread_mutex_lock(&g_backtrace_mutex);
 
-  void** p = (void**)(g_malloc ? g_malloc(size+EXTRA) : sbrk(size+EXTRA));
+  void** p = (void**)(g_malloc ? g_malloc(size+EXTRA) : pre_init_malloc(size+EXTRA));
   p[SIZE_INDEX] = (void*)size; /* write size even if we don't write the call stack [for realloc] */
   if(inside_malloc || !g_mutex_init) {
     if(g_mutex_init) pthread_mutex_unlock(&g_backtrace_mutex);
@@ -95,6 +112,9 @@ void free(void *ptr) {
   p[END_INDEX] = 0;
   if(!g_free) {
     return; /* we aren't fully initialized - so leak the block */
+  }
+  if((char*)p >= g_pre_init_begin && (char*)p <= g_pre_init_end) {
+    return; /* a block allocated by sbrk() - can't free */
   }
   g_free(p);
 }
