@@ -5,8 +5,8 @@ void sample_state() {}
 
 void example_func() {
   int i;
-  for(i=0; i<1024; ++i) {
-    int* p=(int*)malloc(1024 + (i%2));
+  for(i=0; i<8; ++i) {
+    int* p=(int*)malloc(128*1024 + (i%2 ? 1 : -1));
     p[1]=5;
   }
 }
