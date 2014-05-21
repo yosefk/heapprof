@@ -45,7 +45,6 @@ static int g_mutex_init;
 static char* g_pre_init_begin;
 static char* g_pre_init_end;
 
-/* TODO: use gdb as a (better) alternative to addr2line */
 static void init(void) {
   static int once = 1;
   if(once) {
@@ -78,18 +77,20 @@ static void* pre_init_malloc(size_t size) {
 }
 
 void* malloc(size_t size) {
-  static int inside_malloc = 0;
+  static int inside_malloc = 0; /* this is needed since backtrace mallocs. protected by g_backtrace_mutex */
   init();
 
   if(g_mutex_init) pthread_mutex_lock(&g_backtrace_mutex);
 
   void** p = (void**)(g_malloc ? g_malloc(size+EXTRA) : pre_init_malloc(size+EXTRA));
   p[SIZE_INDEX] = (void*)size; /* write size even if we don't write the call stack [for realloc] */
+
   if(inside_malloc || !g_mutex_init) {
     if(g_mutex_init) pthread_mutex_unlock(&g_backtrace_mutex);
     return (char*)p + EXTRA; /* backtrace() calls malloc which causes infinite recursion.
                  unfortunately this workaround is thread-unsafe */
   }
+
   inside_malloc = 1;
   p[START_INDEX] = START_MAGIC;
   backtrace(p+SIZE_INDEX, g_heapprof_frames+1); /* 1 for &malloc, overwriting size */
@@ -103,9 +104,7 @@ void* malloc(size_t size) {
 }
 
 void free(void *ptr) {
-  if(!ptr) {
-    return; /* free(NULL) is a legitimate no-op */
-  }
+  if(!ptr) return; /* free(NULL) is a legitimate no-op */
   init();
   void** p = (void**)((char*)ptr - EXTRA);
   p[START_INDEX] = 0; /* clear the magic numbers so heapprof.py doesn't find a free block */
@@ -119,22 +118,16 @@ void free(void *ptr) {
   g_free(p);
 }
 
-/* a lazy solution for calloc/realloc - implement them using malloc/free */
-
-void* calloc(size_t nmemb, size_t size)
-{
+void* calloc(size_t nmemb, size_t size) {
   void* ret = malloc(nmemb * size);
   memset(ret, 0, nmemb * size);
   return ret;
 }
 
-void* realloc(void* ptr, size_t size)
-{
-  if(!ptr) {
-    return malloc(size);
-  }
+void* realloc(void* ptr, size_t size) {
+  if(!ptr) return malloc(size);
   size_t* p = (size_t*)((char*)ptr - EXTRA);
-  size_t prev_size = p[SIZE_INDEX];
+  size_t prev_size = p[SIZE_INDEX]; /* that's why malloc saves size even when it doesn't save the call stack */
   void* new_ptr = malloc(size);
   size_t copy_size = prev_size < size ? prev_size : size;
   memcpy(new_ptr, ptr, copy_size);

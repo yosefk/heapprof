@@ -16,15 +16,6 @@ except:
 
 fmt = {4:'I',8:'Q'}[cell]
 
-# a silly guard against "non-blocks" - occurences of HeaP and ProF
-# in code instead of data
-def is_block(s,e): return (e-s)%cell == 0 and (e-s)/cell < 100
-
-class Block:
-  def __init__(self, metadata):
-    self.size = struct.unpack(fmt, metadata[0:cell])[0]
-    self.stack = struct.unpack('%d'%(len(metadata)/cell - 1)+fmt, metadata[cell:])
-
 def gdb_sym_info(addrs,exe):
   gdb = subprocess.Popen(['gdb',prog,core], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
   info = {}
@@ -68,6 +59,15 @@ def sym_info(addrs,exe):
   if gdb_found < 1: # gdb didn't manage to find anything - perhaps the core dump is in a custom format
     syminfo = addr2line_sym_info(addrs, prog)
   return syminfo
+
+# a silly guard against "non-blocks" - occurences of HeaP and ProF
+# in code instead of data
+def is_block(s,e): return (e-s)%cell == 0 and (e-s)/cell < 100
+
+class Block:
+  def __init__(self, metadata):
+    self.size = struct.unpack(fmt, metadata[0:cell])[0]
+    self.stack = struct.unpack('%d'%(len(metadata)/cell - 1)+fmt, metadata[cell:])
 
 def find_blocks(bytes):
   blocks = []
