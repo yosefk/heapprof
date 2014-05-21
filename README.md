@@ -31,7 +31,8 @@ The program should produce a core dump in any of the possible ways, such as:
 ```
 int* p=0; *p=0; // a C program can just crash itself
 os.kill(os.getpid(), 11) # a Python program can send itself a SIGSEGV
-gdb program -ex b func_name -ex "gcore my.core" -ex c -ex q # place a gdb breakpoint, dump core when it's hit
+gdb program -ex "b func_name" -ex r -ex "gcore my.core" -ex q
+# the above places a gdb breakpoint and dumps core when it's hit
 ```
 
 The core dump contains metadata near each not-yet-freed malloc'd chunk of memory. To decode this metadata, use:
