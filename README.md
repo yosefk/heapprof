@@ -23,7 +23,7 @@ The following works on Linux; see [Porting](#porting) for how to adapt this to, 
 To run your program with malloc instrumentation.
 
 ```
-env LD_PRELOAD=heapprof.so GLIBCPP_FORCE_NEW=1 your-program args...
+env LD_PRELOAD=heapprof.so GLIBCXX_FORCE_NEW=1 your-program args...
 ```
  
 The program should produce a core dump in any of the possible ways, such as:
@@ -56,7 +56,7 @@ Runtime options
 
 * When running with heapprof.so, use **$HEAPPROF_FRAMES** to configure the number of collected stack frames (default: 16)
 * When running heapprof.py, set **$HEAPPROF_ADDR2LINE** if you prefer to use it instead of gdb for function names and source line information (drawback: doesn't see inside shared libraries; advantage: doesn't look at the core dump so works with custom (non-ELF) core dumps that an embedded system could produce)
-* **$GLIBCPP_FORCE_NEW** in the usage example above isn't a heapprof.so thing - it forces GNU libc++ to use malloc so its memory usage isn't obscured by its own memory allocator. If your program has other custom allocators, forcing it to use malloc instead under heapprof.so could be a good idea.
+* **$GLIBCXX_FORCE_NEW** in the usage example above isn't a heapprof.so thing - it forces GNU libc++ to use malloc so its memory usage isn't obscured by its own memory allocator. If your program has other custom allocators, forcing it to use malloc instead under heapprof.so could be a good idea.
 
 Porting
 =======
