@@ -4,9 +4,9 @@
 
 void make_blocks(void) {
   int i;
-  for(i=0; i<1024*1024; ++i) {
+  for(i=0; i<1024*16; ++i) {
     void* p = malloc(1);
-    if(i%1024) free(p);
+    if(i%16) { free(p); }
   }
 }
 
